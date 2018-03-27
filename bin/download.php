@@ -3,20 +3,20 @@
 require __DIR__.'/../vendor/autoload.php';
 
 use Carbon\Carbon;
+use Pndata\AutomateNotifier\Notifier;
 
 // Configuration
 $conf = include __DIR__ . '/../conf/config.php';
 
 if(isset($argv[1])) {
-	if(file_exists($argv[1])) {
-		$conf = array_merge($conf, include $argv[1]);
-	} else {
-		die("Erreur : le fichier de configuration " . $argv[1] . " n'existe pas");
-	}
+    if(file_exists($argv[1])) {
+        $conf = array_merge($conf, include $argv[1]);
+    } else {
+        die("Erreur : le fichier de configuration " . $argv[1] . " n'existe pas");
+    }
 } else {
-	die("Erreur : configuration requise");
+    die("Erreur : configuration requise");
 }
-
 
 // Client + Requête
 $fromDate = Carbon::now()->subDays($conf['period']['from']);
@@ -30,6 +30,8 @@ $contacts = $iraiser->contacts()->withDonations()->fromDate($fromDate->format('Y
 $page = 1;
 $contactsData = [];
 $donationsData = [];
+
+$notifier = new Notifier($conf['notifications'], '[iRaiser ' . $conf['account'] . '] %s %s');
 
 function sendmail($fromDate, $toDate, $errorMsg=null) {
   global $conf;
@@ -52,53 +54,55 @@ function tocsv($line) {
 
 try {
 
-  while(count($contactsTmp = $contacts->page($page)->get())) {
-    $contactsTmp2 = [];
-    $donationsTmp = [];
-    foreach($contactsTmp as $contactRow) {
-      $contactRow2 = [];
-      foreach($conf['contactFields'] as $field) {
-        $contactRow2[$field] = isset($contactRow[$field]) ? $contactRow[$field] : null;
-      }
-      $contactsTmp2[] = $contactRow2;
-
-      if(isset($contactRow['donations'])) {
-        foreach($contactRow['donations'] as $donationRow) {
-          $donationRow2 = ['contactId' => $contactRow2['contactId']];
-          foreach($conf['donationFields'] as $field) {
-            $donationRow2[$field] = isset($donationRow[$field]) ? $donationRow[$field] : null;
-          }
-          $donationsTmp[] = $donationRow2;
+    while(count($contactsTmp = $contacts->page($page)->get())) {
+      $contactsTmp2 = [];
+      $donationsTmp = [];
+      foreach($contactsTmp as $contactRow) {
+        $contactRow2 = [];
+        foreach($conf['contactFields'] as $field) {
+          $contactRow2[$field] = isset($contactRow[$field]) ? $contactRow[$field] : null;
         }
+        $contactsTmp2[] = $contactRow2;
+
+        if(isset($contactRow['donations'])) {
+          foreach($contactRow['donations'] as $donationRow) {
+            $donationRow2 = ['contactId' => $contactRow2['contactId']];
+            foreach($conf['donationFields'] as $field) {
+              $donationRow2[$field] = isset($donationRow[$field]) ? $donationRow[$field] : null;
+            }
+            $donationsTmp[] = $donationRow2;
+          }
+        }
+
       }
-
+      $contactsData = array_merge($contactsData, $contactsTmp2);
+      $donationsData = array_merge($donationsData, $donationsTmp);
+      $page++;
     }
-    $contactsData = array_merge($contactsData, $contactsTmp2);
-    $donationsData = array_merge($donationsData, $donationsTmp);
-    $page++;
-  }
 
-  $contactsCsv = [tocsv($conf['contactFields'])];
-  $contactsCsv = array_merge($contactsCsv, array_map(function($row) {
-    return tocsv(array_values($row));
-  }, $contactsData));
+    $contactsCsv = [tocsv($conf['contactFields'])];
+    $contactsCsv = array_merge($contactsCsv, array_map(function($row) {
+      return tocsv(array_values($row));
+    }, $contactsData));
 
-  $donationsCsv = [tocsv(array_merge(['contactId'], $conf['donationFields']))];
-  $donationsCsv = array_merge($donationsCsv, array_map(function($row) {
-    return tocsv(array_values($row));
-  }, $donationsData));
-  $output = [implode($contactsCsv, PHP_EOL), implode($donationsCsv, PHP_EOL)];
+    $donationsCsv = [tocsv(array_merge(['contactId'], $conf['donationFields']))];
+    $donationsCsv = array_merge($donationsCsv, array_map(function($row) {
+      return tocsv(array_values($row));
+    }, $donationsData));
+    $output = [implode($contactsCsv, PHP_EOL), implode($donationsCsv, PHP_EOL)];
 
-  if(@file_put_contents($contactsFile, $output[0]) === false) {
-    throw new Exception('Impossible d\'écrire dans le fichier ' . $contactsFile . ' : ' . error_get_last()['message']);
-  }
+    if(@file_put_contents($contactsFile, $output[0]) === false) {
+      throw new Exception('Impossible d\'écrire dans le fichier ' . $contactsFile . ' : ' . error_get_last()['message']);
+    }
 
-  if(@file_put_contents($donationsFile, $output[1]) === false) {
-    throw new Exception('Impossible d\'écrire dans le fichier ' . $donationsFile . ' : ' . error_get_last()['message']);
-  }
+    if(@file_put_contents($donationsFile, $output[1]) === false) {
+      throw new Exception('Impossible d\'écrire dans le fichier ' . $donationsFile . ' : ' . error_get_last()['message']);
+    }
 
-  sendmail($fromDate, $toDate);
+    $notifier->info("Téléchargement des données du {$fromDate->format('d/m/Y')} au {$toDate->format('d/m/Y')} réussi", "");
 
-} catch(Exception $e) {
-  sendmail($fromDate, $toDate, $e->getMessage());
+} catch(Exception $e) {    
+    
+    $notifier->alert("Téléchargement des données du {$fromDate->format('d/m/Y')} au {$toDate->format('d/m/Y')} échoué", "");
+  
 }

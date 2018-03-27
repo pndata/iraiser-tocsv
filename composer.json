@@ -1,10 +1,10 @@
 {
     "name": "pndata/iraiser-tocsv",
-    "minimum-stability": "stable",
     "description": "Programme pour télécharger les données contacts et dons et les convertir au format CSV",
     "require": {
         "nesbot/carbon": "^1.22",
-        "pndata/iraiser-client": "1.0.3"
+        "pndata/iraiser-client": "1.0.3",
+        "pndata/automate-notifier": "^1"
     },
     "require-dev": {
         "phpunit/phpunit": "^6.5"
@@ -19,6 +19,10 @@
       {
         "type": "vcs",
         "url": "https://github.com/pndata/iraiser-client"
+      },
+      {
+        "type": "vcs",
+        "url": "https://github.com/pndata/automate-notifier.git"
       }
   ]
 }
