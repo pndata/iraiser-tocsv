@@ -21,7 +21,7 @@ if(isset($argv[1])) {
 // Client + Requête
 $fromDate = Carbon::now()->subDays($conf['period']['from']);
 $toDate = Carbon::now()->subDays($conf['period']['to']);
-$iraiser = new Pn\iRaiser\Client($conf['api']['user'], $conf['api']['apiKey']);
+$iraiser = new Pndata\iRaiser\Client($conf['api']['user'], $conf['api']['apiKey']);
 $contactsFile = sprintf($conf['destination'] . '/' . $conf['contactsFileName'], $fromDate->format('Y.m.d'), $toDate->format('Y.m.d'));
 $donationsFile = sprintf($conf['destination'] . '/' . $conf['donationsFileName'], $fromDate->format('Y.m.d'), $toDate->format('Y.m.d'));
 $contacts = $iraiser->contacts()->withDonations()->fromDate($fromDate->format('Y-m-d'))->toDate($toDate->format('Y-m-d'));
